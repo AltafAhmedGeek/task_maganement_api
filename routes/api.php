@@ -19,9 +19,12 @@ use Illuminate\Support\Facades\Route;
 
 // Routes without any middleware
 Route::post('/login', [UserController::class, 'login'])->name('api.login');
-Route::middleware(['api'])->group(function () {
+Route::group([
+    'middleware' => 'customAuth',
+], function () {
     Route::get('/tasks', [TaskController::class, 'index']);
     Route::post('/tasks', [TaskController::class, 'store']);
+    Route::post('/logout', [UserController::class, 'logout']);
     Route::put('/tasks/{id}', [TaskController::class, 'update']);
     Route::delete('/tasks/{id}', [TaskController::class, 'destroy']);
     Route::post('/tasks/assign', [TaskController::class, 'assignUser']);

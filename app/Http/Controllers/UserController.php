@@ -14,31 +14,42 @@ class UserController extends Controller
     {
         $credentials = $request->only(['email', 'password']);
         $rules = [
-            'email'=>['required','email'],
-            'password'=>['required','string']
+            'email' => ['required', 'email'],
+            'password' => ['required', 'string']
         ];
         $validator = Validator::make($credentials, $rules);
-        if($validator->fails()){
+        if ($validator->fails()) {
             return response()->json([
                 'status' => false,
                 'message' => 'Validation Error(s).',
                 'error' => $validator->errors(),
             ]);
         }
-        $token = JWTAuth::attempt($credentials);
-        if(!$token){
+        $token = Auth::attempt($credentials);
+        if (!$token) {
             return response()->json([
                 'status' => false,
                 'message' => 'Login Failed.',
             ]);
         }
+        return $this->respondWithToken($token);
+    }
+    protected function respondWithToken($token)
+    {
         return response()->json([
-            'status' => true,
-            'message' => 'Login Successfully.',
-            'token' => $token,
+            'status' => false,
+            'message' => 'Login Successful',
+            'access_token' => $token,
+            'token_type' => 'bearer',
+            'expires_in' => auth()->factory()->getTTL() * 60
         ]);
     }
-    
+    public function logout()
+    {
+        auth()->logout();
+
+        return response()->json(['message' => 'Successfully logged out']);
+    }
     /**
      * Display a listing of the resource.
      */
