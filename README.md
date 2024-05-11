@@ -14,4 +14,5 @@ DB_PASSWORD=</code>
     </li>
     <li>Run  <code>php artisan migrate</code></li>
     <li>Run  <code>php artisan db:seed</code></li>
+    <li>Run  <code>Now create, update, delete, assign, unassign, list tasks and many more...</code></li>
 </ol>
