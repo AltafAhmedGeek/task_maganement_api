@@ -19,17 +19,14 @@ use Illuminate\Support\Facades\Route;
 
 // Routes without any middleware
 Route::post('/login', [UserController::class, 'login'])->name('api.login');
-Route::middleware([''])->group(function () {
-    Route::get('/demo', function () {
-        $user = User::where('email', 'buford.mccullough@example.com')->first();
-        return Hash::check('password', $user->password);
-    });
+Route::middleware(['api'])->group(function () {
+    Route::get('/tasks', [TaskController::class, 'index']);
+    Route::post('/tasks', [TaskController::class, 'store']);
+    Route::put('/tasks/{id}', [TaskController::class, 'update']);
+    Route::delete('/tasks/{id}', [TaskController::class, 'destroy']);
+    Route::post('/tasks/assign', [TaskController::class, 'assignUser']);
+    Route::post('/tasks/unassign', [TaskController::class, 'unassignUser']);
+    Route::post('/tasks/changeStatus', [TaskController::class, 'changeStatus']);
+    Route::get('/tasks/currentUserTasks', [TaskController::class, 'currentUserTasks']);
+    Route::get('/tasks/tasksAssignedToUser/{id}', [TaskController::class, 'tasksAssignedToUser']);
 });
-
-Route::get('/tasks', [TaskController::class, 'index']);
-Route::post('/tasks', [TaskController::class, 'store']);
-Route::put('/tasks/{id}', [TaskController::class, 'update']);
-Route::delete('/tasks/{id}', [TaskController::class, 'destroy']);
-Route::post('/tasks/assign', [TaskController::class, 'assignUser']);
-Route::post('/tasks/unassign', [TaskController::class, 'unassignUser']);
-Route::post('/tasks/changeStatus', [TaskController::class, 'changeStatus']);
