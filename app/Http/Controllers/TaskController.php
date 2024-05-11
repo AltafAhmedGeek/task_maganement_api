@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\TaskModel;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
 class TaskController extends Controller
@@ -26,19 +25,17 @@ class TaskController extends Controller
                 'errors' => $validator->errors(),
             ]);
         }
-
-
         $task = TaskModel::create($validator->validated());
 
-        return response()->json(['message' => 'Task created successfully', 'task' => $task], 201);
+        return response()->json(['status' => true, 'message' => 'Task created successfully', 'task' => $task], 201);
     }
     public function update(Request $request, $id)
     {
         $validator = Validator::make($request->all(), [
-            'title' => 'required|string',
-            'description' => 'required|string',
-            'due_date' => 'required|date',
-            'status' => 'required|string|in:pending,in progress,completed',
+            'title' => 'nullable|string',
+            'description' => 'nullable|string',
+            'due_date' => 'nullable|date',
+            'status' => 'nullable|string|in:pending,in_progress,completed',
         ]);
 
         if ($validator->fails()) {
@@ -51,10 +48,15 @@ class TaskController extends Controller
 
         $task = TaskModel::find($id);
         if ($task) {
-            $task->update($validator->validated());
-            return response()->json(['message' => 'Task updated successfully', 'task' => $task]);
+            $task->update([
+                'title' => $request->title ?? $task->title,
+                'description' => $request->description ?? $task->description,
+                'due_date' => $request->due_date ?? $task->due_date,
+                'status' => $request->status ?? $task->status,
+            ]);
+            return response()->json(['status' => true, 'message' => 'Task updated successfully', 'task' => $task]);
         } else {
-            return response()->json(['message' => 'Task not found', 'task' => $task]);
+            return response()->json(['status' => false, 'message' => 'Task not found', 'task' => $task]);
         }
     }
     public function destroy($id)
@@ -62,17 +64,17 @@ class TaskController extends Controller
         $task = TaskModel::find($id);
         if ($task) {
             $task->delete();
-            return response()->json(['message' => 'Task deleted successfully']);
+            return response()->json(['status' => true, 'message' => 'Task deleted successfully']);
         } else {
-            return response()->json(['message' => 'Task not found']);
+            return response()->json(['status' => false, 'message' => 'Task not found']);
         }
     }
     public function assignUser(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'user_id' => 'required|exists:users,id,deleted_at,NULL',
-            'task_id' => 'required|exists:tasks,id,deleted_at,NULL',
-
+            'user_id' => 'required|array',
+            'user_id.*' => 'required|integer|exists:users,id,deleted_at,NULL',
+            'task_id' => 'required|integer|exists:tasks,id,deleted_at,NULL',
         ]);
         if ($validator->fails()) {
             return response()->json([
@@ -82,18 +84,10 @@ class TaskController extends Controller
             ]);
         }
         $task = TaskModel::find($request->task_id);
-        $alreadyAssigned = DB::table('task_user')
-            ->where('user_id', $request->user_id)
-            ->where('task_id', $request->task_id)
-            ->exists();
-        if ($alreadyAssigned) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Task Already assigned to User.',
-            ]);
+        $newUserIds = array_diff($request->user_id, $task->users->pluck('id')->toArray());
+        if (!empty($newUserIds)) {
+            $task->users()->attach($newUserIds);
         }
-        $task->users()->attach($request->user_id);
-
         return response()->json([
             'status' => true,
             'message' => 'Task Assigned Successfully',
@@ -103,9 +97,9 @@ class TaskController extends Controller
     public function unassignUser(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'user_id' => 'required|exists:users,id,deleted_at,NULL',
-            'task_id' => 'required|exists:tasks,id,deleted_at,NULL',
-
+            'user_id' => 'required|array',
+            'user_id.*' => 'required|integer|exists:users,id,deleted_at,NULL',
+            'task_id' => 'required|integer|exists:tasks,id,deleted_at,NULL',
         ]);
         if ($validator->fails()) {
             return response()->json([
@@ -114,19 +108,13 @@ class TaskController extends Controller
                 'errors' => $validator->errors(),
             ]);
         }
-        $alreadyAssigned = DB::table('task_user')
-            ->where('user_id', $request->user_id)
-            ->where('task_id', $request->task_id)
-            ->exists();
-        if (!$alreadyAssigned) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Task Not assigned to User.',
-            ]);
-        }
         $task = TaskModel::find($request->task_id);
-        $task->users()->detach($request->user_id);
+        $assignedUserIds = $task->users->pluck('id')->toArray();
+        $userIdsToDetach = array_intersect($assignedUserIds, $request->user_id);
 
+        if (!empty($userIdsToDetach)) {
+            $task->users()->detach($userIdsToDetach);
+        }
         return response()->json([
             'status' => true,
             'message' => 'Task Unassigned Successfully',
@@ -156,13 +144,26 @@ class TaskController extends Controller
         ]);
     }
 
-    public function userTasks(Request $request)
+    public function tasksAssignedToUser($userId)
+    {
+        $tasks = TaskModel::whereHas('users', function ($query) use ($userId) {
+            $query->where('id', $userId);
+        })->get();
+
+        if ($tasks->count() > 0)
+            return response()->json(['status' => true, 'tasks' => $tasks, 'count' => $tasks->count()]);
+        else
+            return response()->json(['status' => false, 'tasks' => [], 'count' => 0]);
+    }
+    public function currentUserTasks()
     {
         $user = Auth::user();
-
         $tasks = $user->tasks()->get();
 
-        return response()->json($tasks);
+        if ($tasks->count() > 0)
+            return response()->json(['status' => true, 'tasks' => $tasks, 'count' => $tasks->count()]);
+        else
+            return response()->json(['status' => false, 'tasks' => [], 'count' => 0]);
     }
     public function index(Request $request)
     {
@@ -183,7 +184,9 @@ class TaskController extends Controller
         }
 
         $tasks = $query->get();
-
-        return response()->json(['tasks' => $tasks]);
+        if ($tasks->count() > 0)
+            return response()->json(['status' => true, 'tasks' => $tasks, 'count' => $tasks->count()]);
+        else
+            return response()->json(['status' => false, 'tasks' => [], 'count' => 0]);
     }
 }
